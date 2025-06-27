@@ -1,529 +1,521 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fire Truck Monthly Checklist</title>
+    <title>Fire Truck Status Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                    keyframes: {
-                        spin: {
-                          '0%': { transform: 'rotate(0deg)' },
-                          '100%': { transform: 'rotate(360deg)' },
-                        }
-                    },
-                    animation: {
-                        spin: 'spin 1s linear infinite',
-                    }
-                },
-            },
-        }
-    </script>
-    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Slate & Amber -->
+    <!-- Application Structure Plan: A dashboard layout is used to provide an immediate, high-level overview and allow for intuitive drill-downs. The structure consists of: 1) A top-level summary with critical stats (Overall Status, Deficiencies, Key Levels) for quick assessment. 2) Tab-based navigation for each major truck system, which is a more user-friendly discovery method than a long, linear scroll. 3) A dynamic content area that displays the detailed checklist for the selected system. This tiered structure (summary -> system -> detail) was chosen because it allows a user to quickly grasp the overall situation and then efficiently investigate specific areas of concern without being overwhelmed by information, directly translating the form's data collection purpose into an effective data analysis tool. 4) A new 'Edit Dashboard' button enables inline editing of all displayed data fields, removing the need for JSON interaction. -->
+    <!-- Visualization & Content Choices:
+        - Report Info: Overall Truck Status -> Goal: Inform -> Viz/Method: Large summary cards & text -> Interaction: None -> Justification: Provides the most critical information at a glance. Library: HTML/Tailwind.
+        - Report Info: Fuel & Water Levels -> Goal: Inform -> Viz/Method: Donut Chart -> Interaction: Hover for details -> Justification: Provides a quick, universally understood visual for fluid levels. Library: Chart.js.
+        - Report Info: Checklist Sections (Exterior, Interior, etc.) -> Goal: Organize/Navigate -> Viz/Method: Tabbed button navigation -> Interaction: Click to change view -> Justification: Breaks down a long form into manageable, logical sections for focused review. Library: JS/HTML.
+        - Report Info: Detailed Checklist Items -> Goal: Inform/Organize -> Viz/Method: Styled list with status badges -> Interaction: View updates based on tab selection, inline editing in edit mode -> Justification: Clearly presents detailed data, with color-coding to instantly draw attention to issues. Inline editing provides direct, intuitive data modification. Library: JS/HTML.
+        - Report Info: Deficiencies -> Goal: Inform/Organize -> Viz/Method: A consolidated list view -> Interaction: Accessed via a dedicated tab -> Justification: Gathers all action items into a single, actionable list, which is the primary operational outcome of a check. Library: JS/HTML.
+        - Report Info: Data Customization -> Goal: Allow User Input/Modification -> Viz/Method: Inline editable fields -> Interaction: Toggle edit mode, update values directly, save/cancel -> Justification: Offers a highly intuitive, form-like experience for data modification without requiring JSON knowledge. Library: JS/HTML.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
-        body { background-color: #f0f2f5; }
-        .modal {
-            transition: opacity 0.3s ease, transform 0.3s ease;
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
         }
-        .modal-content {
-            transition: transform 0.3s ease;
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
         }
-        .btn { @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background; }
-        .btn-primary { @apply bg-red-600 text-white hover:bg-red-700; }
-        .btn-secondary { @apply bg-gray-200 text-gray-800 hover:bg-gray-300; }
-        .card { @apply bg-white rounded-xl shadow-md overflow-hidden; }
-        .loader { @apply w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin; }
-        [v-cloak] { display: none; }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 250px;
+            }
+        }
+        .nav-button.active {
+            background-color: #1e293b; /* slate-800 */
+            color: #ffffff;
+        }
+        .status-ok { background-color: #dcfce7; color: #166534; }
+        .status-issue { background-color: #fef9c3; color: #854d0e; }
+        .status-danger { background-color: #fee2e2; color: #991b1b; }
+        .edit-input {
+            border: 1px solid #cbd5e1;
+            border-radius: 0.375rem;
+            padding: 0.25rem 0.5rem;
+            width: 100%;
+        }
+        .edit-select {
+            border: 1px solid #cbd5e1;
+            border-radius: 0.375rem;
+            padding: 0.25rem 0.5rem;
+            width: 100%;
+            background-color: white;
+        }
     </style>
 </head>
-<body class="antialiased text-gray-800">
+<body class="text-slate-800">
 
-    <div id="app" v-cloak class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-
-        <!-- Header -->
+    <div class="container mx-auto p-4 md:p-8">
+        
         <header class="mb-8">
-            <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
                 <div>
-                    <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600 mr-3"><path d="M14 16.5V8.28a2.23 2.23 0 0 0-1.76-2.18l-5.34-1.28a2.24 2.24 0 0 0-2.52 2.18v8.68a2.24 2.24 0 0 0 2.52 2.18l5.34-1.28A2.23 2.23 0 0 0 14 16.5Z"/><path d="m14 8 3-3 3 3"/><path d="M17 5v3.5a2.5 2.5 0 0 1-5 0V5"/><path d="M2 14h10"/><path d="M6 11h2"/><path d="M10 11h2"/></svg>
-                        Fire Truck Checklist
-                    </h1>
-                    <p class="text-gray-500 mt-1">A shared, AI-powered checklist for your department.</p>
+                    <h1 class="text-3xl font-bold text-slate-900">Truck Status Dashboard</h1>
+                    <p id="truck-info" class="text-slate-500 mt-1">Truck ID: <span id="truck-id-display">E-12</span> | Last Check: <span id="last-check-date-display">June 26, 2025</span></p>
                 </div>
-                <div>
-                    <button @click="showCustomizeModal = true" class="btn btn-secondary">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-                        Customize Checklist
-                    </button>
+                <div class="mt-4 md:mt-0 flex items-center space-x-4">
+                    <div id="overall-status" class="text-lg font-semibold px-4 py-2 rounded-lg"></div>
+                    <button id="edit-mode-btn" class="px-4 py-2 bg-slate-800 text-white rounded-lg shadow hover:bg-slate-700 transition-colors duration-200">Edit Dashboard</button>
+                    <button id="save-changes-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition-colors duration-200 hidden">Save Changes</button>
+                    <button id="cancel-edit-btn" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg shadow hover:bg-slate-300 transition-colors duration-200 hidden">Cancel</button>
                 </div>
             </div>
-             <div class="text-xs text-gray-400 mt-2">Your User ID: <span class="font-mono">{{ userId }}</span></div>
         </header>
 
-        <!-- Main Content -->
-        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <main>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-xl shadow-md flex flex-col justify-between">
+                    <h3 class="font-semibold text-slate-600">Total Deficiencies</h3>
+                    <p id="deficiencies-count" class="text-4xl font-bold text-amber-500">0</p>
+                </div>
+                 <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="font-semibold text-slate-600 mb-2">Fuel Level</h3>
+                    <div class="chart-container h-24 max-h-24">
+                        <canvas id="fuelChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="font-semibold text-slate-600 mb-2">Water Tank Level</h3>
+                    <div class="chart-container h-24 max-h-24">
+                        <canvas id="waterChart"></canvas>
+                    </div>
+                </div>
+                 <div class="bg-white p-6 rounded-xl shadow-md flex flex-col justify-between">
+                    <h3 class="font-semibold text-slate-600">Odometer</h3>
+                    <p id="odometer-reading" class="text-4xl font-bold text-slate-800">0</p>
+                </div>
+            </div>
             
-            <!-- Trucks List -->
-            <div class="lg:col-span-1">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4">Department Trucks</h2>
-                <div class="space-y-4">
-                    <div v-if="trucks.length === 0" class="text-center py-10 px-4 bg-white rounded-lg shadow-sm">
-                        <p class="text-gray-500">No trucks added yet.</p>
-                        <p class="text-sm text-gray-400">Add the first truck to get started.</p>
-                    </div>
-                    <div v-for="truck in trucks" :key="truck.id" class="card flex items-center p-4 justify-between">
-                         <div>
-                            <h3 class="font-bold text-lg">{{ truck.name }}</h3>
-                            <p class="text-sm text-gray-500">{{ truck.identifier }}</p>
-                        </div>
-                        <button @click="startCheck(truck)" class="btn btn-primary px-4 py-2">Start Check</button>
-                    </div>
-                    <button @click="showAddTruckModal = true" class="w-full btn btn-secondary py-3 border-2 border-dashed hover:bg-gray-100">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                        Add New Truck
-                    </button>
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-md">
+                <nav id="navigation" class="flex flex-wrap border-b border-slate-200 mb-6">
+                </nav>
+
+                <div id="details-container">
+                    <h2 id="section-title" class="text-xl font-bold mb-4 text-slate-800"></h2>
+                    <p id="section-intro" class="text-slate-600 mb-6"></p>
+                    <ul id="checklist" class="space-y-3">
+                    </ul>
                 </div>
             </div>
 
-            <!-- Recent Checks -->
-            <div class="lg:col-span-2">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4">Recent Checks</h2>
-                 <div class="card p-6">
-                    <div v-if="checks.length === 0" class="text-center py-10">
-                         <p class="text-gray-500">No checks completed yet.</p>
-                         <p class="text-sm text-gray-400">Completed checks will appear here.</p>
-                    </div>
-                    <div v-else class="space-y-4">
-                        <div v-for="check in recentChecks" :key="check.id" class="p-4 rounded-lg border flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                            <div class="mb-2 sm:mb-0">
-                                <p class="font-semibold">{{ check.truckName }}</p>
-                                <p class="text-sm text-gray-500">Checked on {{ check.date ? new Date(check.date.seconds * 1000).toLocaleDateString() : 'Date N/A' }}</p>
-                                <p class="text-xs text-gray-400 mt-1">By: <span class="font-mono">{{ check.completedBy }}</span></p>
-                            </div>
-                            <div class="text-right">
-                                <span :class="getCheckStatusClass(check)" class="px-2 py-1 text-xs font-semibold rounded-full">
-                                    {{ getCheckStatus(check) }}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </main>
-
-        <!-- Modals -->
-        <div v-if="showAddTruckModal" @click.self="showAddTruckModal = false" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 modal">
-            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md modal-content">
-                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Add a New Truck</h3>
-                <form @submit.prevent="addTruck">
-                    <div class="space-y-4">
-                        <div>
-                            <label for="truckName" class="block text-sm font-medium text-gray-700">Truck Name</label>
-                            <input type="text" v-model="newTruck.name" id="truckName" placeholder="e.g., Engine 1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm" required>
-                        </div>
-                        <div>
-                            <label for="truckIdentifier" class="block text-sm font-medium text-gray-700">Identifier</label>
-                            <input type="text" v-model="newTruck.identifier" id="truckIdentifier" placeholder="e.g., E-123" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm">
-                        </div>
-                    </div>
-                    <div class="mt-6 flex justify-end space-x-3">
-                        <button type="button" @click="showAddTruckModal = false" class="btn btn-secondary px-4 py-2">Cancel</button>
-                        <button type="submit" class="btn btn-primary px-4 py-2">Add Truck</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <div v-if="showCustomizeModal" @click.self="showCustomizeModal = false" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 modal">
-            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl modal-content h-full max-h-[90vh] flex flex-col">
-                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-2">Customize Shared Checklist</h3>
-                
-                <div class="p-4 mb-4 bg-red-50 border border-red-200 rounded-lg">
-                    <label for="suggestionQuery" class="block text-sm font-medium text-gray-700 mb-1">Get a head start with AI:</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="suggestionQuery" v-model="checklistSuggestionQuery" placeholder="e.g., Ladder Truck, Ambulance" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm">
-                        <button @click="generateChecklistItems" :disabled="isGeneratingItems" class="btn btn-primary px-3">
-                            <span v-if="!isGeneratingItems" class="flex items-center">✨ Suggest Items</span>
-                            <span v-else class="flex items-center"><div class="loader mr-2"></div> Working...</span>
-                        </button>
-                    </div>
-                </div>
-
-                <h4 class="text-md font-semibold text-gray-800 mb-2">Current Items</h4>
-                <div class="flex-grow overflow-y-auto pr-2 border-t pt-2">
-                     <div v-for="(group, category) in groupedChecklistItems" :key="category" class="mb-4">
-                        <h5 class="font-semibold text-gray-700 border-b pb-1 mb-2">{{ category }}</h5>
-                        <ul class="space-y-2">
-                           <li v-for="item in group" :key="item.id" class="flex justify-between items-center bg-gray-50 p-2 rounded-md">
-                               <span>{{ item.name }}</span>
-                               <button @click="removeChecklistItem(item.id)" class="text-red-500 hover:text-red-700">
-                                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                               </button>
-                           </li>
-                        </ul>
-                    </div>
-                </div>
-                <form @submit.prevent="addChecklistItem" class="mt-4 border-t pt-4">
-                    <h4 class="text-md font-semibold text-gray-800 mb-2">Add New Item Manually</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                         <input type="text" v-model="newChecklistItem.name" placeholder="New Item Name" class="sm:col-span-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm" required>
-                         <input type="text" v-model="newChecklistItem.category" placeholder="Category" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm" required>
-                    </div>
-                    <div class="mt-4 flex justify-between items-center">
-                         <button type="submit" class="btn btn-primary px-4 py-2">Add Item</button>
-                         <button type="button" @click="showCustomizeModal = false" class="btn btn-secondary px-4 py-2">Close</button>
-                    </div>
-                </form>
-            </div>
-        </div>
         
-        <div v-if="currentCheck.truck" @click.self="cancelCheck" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 modal">
-            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl modal-content h-full max-h-[90vh] flex flex-col">
-                <h3 class="text-xl font-bold leading-6 text-gray-900 mb-4">Monthly Check: {{ currentCheck.truck.name }}</h3>
-                <div class="flex-grow overflow-y-auto pr-4">
-                    <form id="checkForm" @submit.prevent="submitCheck">
-                        <div v-for="(group, category) in groupedChecklistItems" :key="category" class="mb-6">
-                            <h4 class="font-semibold text-lg text-gray-800 border-b-2 border-red-200 pb-2 mb-3">{{ category }}</h4>
-                            <div class="space-y-4">
-                                <div v-for="item in group" :key="item.id" class="p-3 bg-gray-50 rounded-lg">
-                                    <label class="block font-medium text-gray-700 mb-2">{{ item.name }}</label>
-                                    <div class="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
-                                        <div class="flex items-center space-x-4">
-                                            <label class="flex items-center">
-                                                <input type="radio" :name="'status-' + item.id" value="OK" v-model="currentCheck.items[item.id].status" class="form-radio h-4 w-4 text-green-600 border-gray-300 focus:ring-green-500">
-                                                <span class="ml-2 text-green-700">OK</span>
-                                            </label>
-                                            <label class="flex items-center">
-                                                <input type="radio" :name="'status-' + item.id" value="Needs Attention" v-model="currentCheck.items[item.id].status" class="form-radio h-4 w-4 text-yellow-600 border-gray-300 focus:ring-yellow-500">
-                                                <span class="ml-2 text-yellow-700">Needs Attention</span>
-                                            </label>
-                                        </div>
-                                        <div class="flex-grow flex items-center gap-2">
-                                            <input type="text" placeholder="Notes (optional)" v-model="currentCheck.items[item.id].notes" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm">
-                                            <button v-if="currentCheck.items[item.id].status === 'Needs Attention'" type="button" @click="expandNote(item.id)" :disabled="isGeneratingNote === item.id" class="btn btn-secondary p-2">
-                                                <span v-if="isGeneratingNote !== item.id">✨</span>
-                                                <div v-else class="loader"></div>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="mt-6 flex justify-end space-x-3 border-t pt-4">
-                     <button type="button" @click="cancelCheck" class="btn btn-secondary px-4 py-2">Cancel</button>
-                     <button type="submit" form="checkForm" class="btn btn-primary px-4 py-2">Submit Check</button>
-                </div>
-            </div>
-        </div>
-        
-        <div v-if="messageModal.show" @click.self="closeMessage" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 modal">
-            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm modal-content text-center">
-                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">{{ messageModal.title }}</h3>
-                <p class="text-sm text-gray-600 mb-6 whitespace-pre-wrap">{{ messageModal.body }}</p>
-                <button @click="closeMessage" class="btn btn-primary px-4 py-2">OK</button>
-            </div>
-        </div>
-
+        <footer class="text-center mt-12 text-slate-400 text-sm">
+            <p>Report generated on <span id="generation-date"></span>.</p>
+        </footer>
     </div>
 
-    <script type="module">
-        import { createApp } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, collection, addDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", projectId: "YOUR_PROJECT_ID" };
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-truck-check-app';
-
-        const fbApp = initializeApp(firebaseConfig);
-        const db = getFirestore(fbApp);
-        const auth = getAuth(fbApp);
-        
-        createApp({
-            data() {
-                return {
-                    isAuthReady: false,
-                    userId: null,
-                    trucks: [],
-                    checks: [],
-                    checklistItems: [],
-                    showAddTruckModal: false,
-                    showCustomizeModal: false,
-                    newTruck: { name: '', identifier: '' },
-                    newChecklistItem: { name: '', category: '' },
-                    currentCheck: {
-                        truck: null,
-                        items: {}
-                    },
-                    isGeneratingItems: false,
-                    isGeneratingNote: null, // will hold item ID
-                    checklistSuggestionQuery: '',
-                    messageModal: { show: false, title: '', body: '' },
-                }
+    <script>
+        let appData = {
+            general: {
+                title: 'General Information',
+                intro: 'This section covers the basic operational details of the truck, including identification, crew, and key meter readings logged during the check.',
+                items: [
+                    { label: 'Date of Check', key: 'dateOfCheck', type: 'date', value: '2025-06-26', status: 'OK' },
+                    { label: 'Truck ID/Number', key: 'truckId', type: 'text', value: 'E-12', status: 'OK' },
+                    { label: 'Driver/Operator Name', key: 'driverName', type: 'text', value: 'J. Doe', status: 'OK' },
+                    { label: 'Officer in Charge (OIC) Name', key: 'oicName', type: 'text', value: 'S. Smith', status: 'OK' },
+                    { label: 'Shift', key: 'shift', type: 'select', options: ['Day', 'Night', '24-hour', 'Other'], value: '24-hour', status: 'OK' },
+                    { label: 'Odometer Reading', key: 'odometer', type: 'number', value: '84321', unit: 'miles', status: 'OK' },
+                    { label: 'Engine Hour Meter Reading', key: 'engineHours', type: 'number', value: '6789', unit: 'hours', status: 'OK' },
+                ]
             },
-            computed: {
-                groupedChecklistItems() {
-                    return this.checklistItems.reduce((acc, item) => {
-                        const category = item.category || 'General';
-                        if (!acc[category]) {
-                            acc[category] = [];
-                        }
-                        acc[category].push(item);
-                        return acc;
-                    }, {});
-                },
-                recentChecks() {
-                   return [...this.checks].sort((a,b) => (b.date?.seconds ?? 0) - (a.date?.seconds ?? 0));
-                }
+            exterior: {
+                title: 'Exterior Vehicle Check',
+                intro: 'A complete walk-around inspection of the vehicle\'s exterior. This includes checking the body, lighting systems, tires, and all compartment doors to ensure operational readiness and safety.',
+                items: [
+                    { label: 'Visual Inspection (Body, Paint)', key: 'visualInspection', type: 'select', options: ['OK', 'Minor Issues', 'Needs Attention'], value: 'Minor Issues', status: 'Issue', note: 'Small scratch on right side panel.' },
+                    { label: 'All Lighting', key: 'allLighting', type: 'select', options: ['OK', 'Bulb Out/Flickering', 'Wiring Issue', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Siren & Air Horn', key: 'sirenAirHorn', type: 'select', options: ['OK', 'Malfunctioning', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Tires', key: 'tires', type: 'select', options: ['OK', 'Low Pressure', 'Worn Tread', 'Damage Noted'], value: 'Low Pressure', status: 'Danger', note: 'Front-left tire pressure at 85 PSI, needs inflation.' },
+                    { label: 'Undercarriage (Leaks, Damage)', key: 'undercarriage', type: 'select', options: ['OK', 'Fluid Leak', 'Visible Damage', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Mirrors & Windows', key: 'mirrorsWindows', type: 'select', options: ['OK', 'Dirty', 'Cracked/Broken'], value: 'OK', status: 'OK' },
+                    { label: 'Compartment Doors', key: 'compartmentDoors', type: 'select', options: ['OK', 'Sticking/Difficult', 'Latch Broken'], value: 'OK', status: 'OK' },
+                    { label: 'Fuel Level', key: 'fuelLevel', type: 'select', options: ['Full', '3/4', '1/2', '1/4', 'Less than 1/4'], value: '3/4', status: 'OK' },
+                ]
             },
-            methods: {
-                // --- Authentication ---
-                async setupFirebase() {
-                    await setPersistence(auth, browserLocalPersistence);
-                    onAuthStateChanged(auth, async (user) => {
-                        if (user) {
-                            this.userId = user.uid;
-                        } else {
-                           try {
-                                const userCredential = await signInAnonymously(auth);
-                                this.userId = userCredential.user.uid;
-                            } catch (error) {
-                                console.error("Anonymous sign-in failed:", error);
-                            }
-                        }
-                        if(this.userId) {
-                            this.isAuthReady = true;
-                            this.loadInitialData();
-                        }
-                    });
-                },
-                
-                // --- Data Loading ---
-                async loadInitialData() {
-                    if (!this.isAuthReady) return;
-                    const publicDataPath = `artifacts/${appId}/public/data`;
-                    this.unsubscribeTrucks = onSnapshot(collection(db, `${publicDataPath}/trucks`), (snapshot) => {
-                        this.trucks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    });
-
-                    this.unsubscribeChecks = onSnapshot(collection(db, `${publicDataPath}/checks`), (snapshot) => {
-                        this.checks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    });
-                    
-                    this.loadChecklistTemplate();
-                },
-                async loadChecklistTemplate() {
-                    const templateRef = doc(db, `artifacts/${appId}/public/data/checklist_template/default`);
-                    this.unsubscribeTemplate = onSnapshot(templateRef, async (docSnap) => {
-                        if (docSnap.exists()) {
-                            this.checklistItems = docSnap.data().items || [];
-                        } else {
-                            const defaultItems = [
-                                { id: crypto.randomUUID(), name: 'Engine Oil Level', category: 'Engine Compartment' },
-                                { id: crypto.randomUUID(), name: 'Coolant Level', category: 'Engine Compartment' },
-                                { id: crypto.randomUUID(), name: 'Tire Pressure & Condition', category: 'Exterior' },
-                                { id: crypto.randomUUID(), name: 'Headlights & Taillights', category: 'Exterior' },
-                                { id: crypto.randomUUID(), name: 'Sirens & Horns', category: 'Cab' },
-                                { id: crypto.randomUUID(), name: 'Radio Communication', category: 'Cab' },
-                            ];
-                            await setDoc(templateRef, { items: defaultItems });
-                            this.checklistItems = defaultItems;
-                        }
-                    });
-                },
-
-                // --- Trucks & Checks ---
-                async addTruck() {
-                    if (this.newTruck.name.trim() === '') return;
-                    const publicDataPath = `artifacts/${appId}/public/data`;
-                    await addDoc(collection(db, `${publicDataPath}/trucks`), { ...this.newTruck });
-                    this.newTruck = { name: '', identifier: '' };
-                    this.showAddTruckModal = false;
-                },
-                startCheck(truck) {
-                    this.currentCheck.truck = truck;
-                    const items = {};
-                    this.checklistItems.forEach(item => {
-                        items[item.id] = {
-                            name: item.name,
-                            category: item.category,
-                            status: 'OK',
-                            notes: ''
-                        };
-                    });
-                    this.currentCheck.items = items;
-                },
-                cancelCheck() {
-                    this.currentCheck = { truck: null, items: {} };
-                },
-                async submitCheck() {
-                    const checkData = {
-                        truckId: this.currentCheck.truck.id,
-                        truckName: this.currentCheck.truck.name,
-                        date: serverTimestamp(),
-                        completedBy: this.userId,
-                        items: Object.values(this.currentCheck.items)
-                    };
-                    const publicDataPath = `artifacts/${appId}/public/data`;
-                    await addDoc(collection(db, `${publicDataPath}/checks`), checkData);
-                    this.cancelCheck();
-                },
-                
-                // --- Checklist Customization ---
-                async addChecklistItem(item = null) {
-                    const itemToAdd = item ? item : this.newChecklistItem;
-                    if (itemToAdd.name.trim() === '' || itemToAdd.category.trim() === '') return;
-                    const newItem = {
-                        id: crypto.randomUUID(),
-                        name: itemToAdd.name,
-                        category: itemToAdd.category
-                    };
-                    const updatedItems = [...this.checklistItems, newItem];
-                    const templateRef = doc(db, `artifacts/${appId}/public/data/checklist_template/default`);
-                    await setDoc(templateRef, { items: updatedItems });
-                    this.newChecklistItem = { name: '', category: '' };
-                },
-                 async addChecklistItemsBatch(items) {
-                    const newItems = items.map(item => ({
-                        id: crypto.randomUUID(),
-                        name: item.name,
-                        category: item.category
-                    }));
-                    const updatedItems = [...this.checklistItems, ...newItems];
-                    const templateRef = doc(db, `artifacts/${appId}/public/data/checklist_template/default`);
-                    await setDoc(templateRef, { items: updatedItems });
-                },
-                async removeChecklistItem(itemId) {
-                     if (!confirm('Are you sure you want to remove this shared item? This will affect all users.')) return;
-                     const updatedItems = this.checklistItems.filter(item => item.id !== itemId);
-                     const templateRef = doc(db, `artifacts/${appId}/public/data/checklist_template/default`);
-                     await setDoc(templateRef, { items: updatedItems });
-                },
-
-                // --- Gemini API Methods ---
-                async generateChecklistItems() {
-                    if (!this.checklistSuggestionQuery.trim() || this.isGeneratingItems) return;
-                    this.isGeneratingItems = true;
-
-                    const prompt = `Generate a JSON array of checklist items for a fire apparatus. The apparatus type is: "${this.checklistSuggestionQuery}". Each object in the array should have two properties: "name" (the checklist item, e.g., "Check SCBA cylinder pressure") and "category" (e.g., "Safety Equipment", "Cab Interior", "Pump Operations"). Provide a comprehensive list appropriate for a monthly check.`;
-
-                    const payload = {
-                        contents: [{ role: "user", parts: [{ text: prompt }] }],
-                        generationConfig: {
-                            responseMimeType: "application/json",
-                            responseSchema: {
-                                type: "ARRAY",
-                                items: {
-                                    type: "OBJECT",
-                                    properties: {
-                                        name: { type: "STRING" },
-                                        category: { type: "STRING" }
-                                    },
-                                    required: ["name", "category"]
-                                }
-                            }
-                        }
-                    };
-                    
-                    try {
-                        const apiKey = "";
-                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-                        const response = await fetch(apiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-
-                        if (!response.ok) throw new Error(`API error: ${response.statusText}`);
-                        
-                        const result = await response.json();
-                        const generatedText = result.candidates[0].content.parts[0].text;
-                        const items = JSON.parse(generatedText);
-
-                        if (items && items.length > 0) {
-                            await this.addChecklistItemsBatch(items);
-                            this.showMessage('Success', `Added ${items.length} suggested items to the checklist.`);
-                        } else {
-                           this.showMessage('No Items Generated', 'The AI did not return any items. Please try a different query.');
-                        }
-                    } catch (error) {
-                        console.error("Error generating checklist items:", error);
-                        this.showMessage('AI Error', 'Could not generate checklist items. Please check the console for details.');
-                    } finally {
-                        this.isGeneratingItems = false;
-                        this.checklistSuggestionQuery = '';
-                    }
-                },
-
-                async expandNote(itemId) {
-                    const noteText = this.currentCheck.items[itemId].notes;
-                    if (!noteText.trim() || this.isGeneratingNote) return;
-                    this.isGeneratingNote = itemId;
-
-                    const prompt = `Expand the following brief maintenance note for a fire truck into a professional, detailed log entry. The original note is: "${noteText}". The expanded note should clearly state the issue and suggest an action.`;
-                    
-                    const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-
-                    try {
-                        const apiKey = "";
-                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-                        const response = await fetch(apiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        if (!response.ok) throw new Error(`API error: ${response.statusText}`);
-                        
-                        const result = await response.json();
-                        const expandedText = result.candidates[0].content.parts[0].text;
-                        this.currentCheck.items[itemId].notes = expandedText.trim();
-
-                    } catch (error) {
-                        console.error("Error expanding note:", error);
-                        this.showMessage('AI Error', 'Could not expand the note. Please check the console for details.');
-                    } finally {
-                        this.isGeneratingNote = null;
-                    }
-                },
-                
-                // --- UI Helpers ---
-                getCheckStatus(check) {
-                    if (!check.items) return 'Data Error';
-                    const hasIssues = check.items.some(item => item.status === 'Needs Attention');
-                    return hasIssues ? 'Needs Attention' : 'All Clear';
-                },
-                getCheckStatusClass(check) {
-                     if (!check.items) return 'bg-gray-100 text-gray-800';
-                     const hasIssues = check.items.some(item => item.status === 'Needs Attention');
-                     return hasIssues ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
-                },
-                showMessage(title, body) {
-                    this.messageModal.title = title;
-                    this.messageModal.body = body;
-                    this.messageModal.show = true;
-                },
-                closeMessage() {
-                    this.messageModal.show = false;
-                }
+            interior: {
+                title: 'Interior & Cab Check',
+                intro: 'An evaluation of all systems and equipment located inside the cab. This covers everything from driver controls and gauges to life-saving equipment like SCBAs and medical gear.',
+                items: [
+                    { label: 'All Gauges & Indicators', key: 'gaugesIndicators', type: 'select', options: ['OK (Normal Readings)', 'Abnormal Reading', 'Gauge Malfunctioning'], value: 'OK (Normal Readings)', status: 'OK' },
+                    { label: 'SCBA - All Positions', key: 'scba', type: 'select', options: ['All OK', 'Low Cylinder (Specify in Notes)', 'Malfunction (Specify in Notes)', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Vehicle Radios', key: 'vehicleRadios', type: 'select', options: ['OK', 'Static/Poor Reception', 'Not Transmitting', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Portable Radios', key: 'portableRadios', type: 'select', options: ['OK', 'Low Battery', 'Malfunctioning', 'N/A'], value: 'Low Battery', status: 'Issue', note: 'Radio #3 needs charging.' },
+                    { label: 'Medical Gear', key: 'medicalGear', type: 'select', options: ['All OK', 'Missing Item (Specify)', 'Expired Item (Specify)', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Hand Tools', key: 'handTools', type: 'select', options: ['All OK', 'Missing Item (Specify)', 'Damaged Item (Specify)'], value: 'OK', status: 'OK' },
+                    { label: 'Flashlights/Lanterns', key: 'flashlightsLanterns', type: 'select', options: ['OK', 'Low Battery', 'Not Working', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Seat Belts', key: 'seatBelts', type: 'select', options: ['OK', 'Damaged/Frayed', 'Not Retracting'], value: 'OK', status: 'OK' },
+                    { label: 'HVAC System', key: 'hvacSystem', type: 'select', options: ['OK', 'Not Working', 'Minor Issues', 'N/A'], value: 'OK', status: 'OK' },
+                ]
             },
-            mounted() {
-                this.setupFirebase();
+            pump: {
+                title: 'Pump and Hose System Check',
+                intro: 'A functional check of the complete water pumping and delivery system. This ensures the truck is ready for fire suppression activities, from the water tank to the nozzles.',
+                items: [
+                    { label: 'Water Tank Level', key: 'waterTankLevel', type: 'select', options: ['Full', '3/4', '1/2', '1/4', 'Less than 1/4'], value: 'Full', status: 'OK' },
+                    { label: 'Pump Priming System', key: 'pumpPriming', type: 'select', options: ['OK', 'Slow Prime', 'Not Priming', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Pump Gages', key: 'pumpGauges', type: 'select', options: ['OK', 'Inaccurate', 'Not Working', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Discharge Gates & Valves', key: 'dischargeGates', type: 'select', options: ['All OK', 'Sticking/Leaking', 'N/A'], value: 'Sticking/Leaking', status: 'Danger', note: 'Discharge #2 valve is stiff.' },
+                    { label: 'Intake Connections', key: 'intakeConnections', type: 'select', options: ['All OK', 'Missing Cap/Gasket'], value: 'OK', status: 'OK' },
+                    { label: 'All Pre-connected Hose Lines', key: 'preconnectedHose', type: 'select', options: ['All OK', 'Minor Wear', 'Damaged (Specify)'], value: 'OK', status: 'OK' },
+                    { label: 'Supply Hose', key: 'supplyHose', type: 'select', options: ['OK', 'Minor Wear', 'Damaged (Specify)', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Nozzles', key: 'nozzles', type: 'select', options: ['All OK', 'Missing', 'Malfunctioning (Specify)'], value: 'OK', status: 'OK' },
+                ]
             },
-            beforeUnmount() {
-                if (this.unsubscribeTrucks) this.unsubscribeTrucks();
-                if (this.unsubscribeChecks) this.unsubscribeChecks();
-                if (this.unsubscribeTemplate) this.unsubscribeTemplate();
+            specialized: {
+                title: 'Specialized Equipment Check',
+                intro: 'Inspection of specialized tools and equipment carried by the apparatus. This may include extrication tools, power saws, and monitoring devices, depending on the truck\'s designation.',
+                items: [
+                    { label: 'Thermal Imager', key: 'thermalImager', type: 'select', options: ['OK', 'Low Battery', 'Malfunctioning', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Gas Detector', key: 'gasDetector', type: 'select', options: ['OK', 'Needs Calibration', 'Malfunctioning', 'N/A'], value: 'Needs Calibration', status: 'Issue' },
+                    { label: 'Hydraulic Extrication Tools', key: 'extricationTools', type: 'select', options: ['All OK', 'Leak Noted', 'Malfunctioning Tool (Specify)', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Power Saws', key: 'powerSaws', type: 'select', options: ['OK', 'Low Fuel', 'Doesn\'t Start', 'Blade Damaged', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Portable Generators', key: 'portableGenerators', type: 'select', options: ['OK', 'Low Fuel', 'Doesn\'t Start', 'No Power Output', 'N/A'], value: 'OK', status: 'OK' },
+                    { label: 'Ground Ladders', key: 'groundLadders', type: 'select', options: ['All OK', 'Damaged', 'Sticking', 'N/A'], value: 'OK', status: 'OK' },
+                ]
+            },
+            deficiencies: {
+                title: 'Deficiencies Summary',
+                intro: 'This is a consolidated list of all items that were marked with an issue or a danger during the inspection. This serves as a primary action list for maintenance and repair.',
+                items: []
             }
-        }).mount('#app');
+        };
 
+        const statusMap = {
+            'OK': 'status-ok',
+            'Issue': 'status-issue',
+            'Danger': 'status-danger'
+        };
+
+        let myCharts = {};
+        let isEditMode = false;
+        let originalAppData = JSON.parse(JSON.stringify(appData)); // Store a copy for cancel
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeDashboard();
+            document.getElementById('edit-mode-btn').addEventListener('click', toggleEditMode);
+            document.getElementById('save-changes-btn').addEventListener('click', saveChanges);
+            document.getElementById('cancel-edit-btn').addEventListener('click', cancelEdit);
+            document.getElementById('generation-date').textContent = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        });
+
+        function initializeDashboard() {
+            populateDeficiencies();
+            renderNavigation();
+            renderSummary();
+            renderCharts();
+            renderSection('exterior'); // Default to exterior section on load
+        }
+
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            const editBtn = document.getElementById('edit-mode-btn');
+            const saveBtn = document.getElementById('save-changes-btn');
+            const cancelBtn = document.getElementById('cancel-edit-btn');
+
+            if (isEditMode) {
+                originalAppData = JSON.parse(JSON.stringify(appData)); // Save current state
+                editBtn.classList.add('hidden');
+                saveBtn.classList.remove('hidden');
+                cancelBtn.classList.remove('hidden');
+                document.getElementById('truck-id-display').innerHTML = `<input type="text" id="edit-truck-id" class="edit-input w-24 text-base" value="${appData.general.items.find(item => item.key === 'truckId').value}">`;
+                document.getElementById('last-check-date-display').innerHTML = `<input type="date" id="edit-last-check-date" class="edit-input w-32 text-base" value="${appData.general.items.find(item => item.key === 'dateOfCheck').value}">`;
+            } else {
+                editBtn.classList.remove('hidden');
+                saveBtn.classList.add('hidden');
+                cancelBtn.classList.add('hidden');
+                document.getElementById('truck-id-display').textContent = appData.general.items.find(item => item.key === 'truckId').value;
+                document.getElementById('last-check-date-display').textContent = appData.general.items.find(item => item.key === 'dateOfCheck').value;
+            }
+            renderSection(document.querySelector('.nav-button.active')?.dataset.section || 'exterior');
+        }
+
+        function saveChanges() {
+            // Update general info from inputs
+            appData.general.items.find(item => item.key === 'truckId').value = document.getElementById('edit-truck-id').value;
+            appData.general.items.find(item => item.key === 'dateOfCheck').value = document.getElementById('edit-last-check-date').value;
+
+            // Collect updated values from current view
+            const currentSectionKey = document.querySelector('.nav-button.active')?.dataset.section;
+            if (currentSectionKey && currentSectionKey !== 'deficiencies') {
+                const currentSectionItems = appData[currentSectionKey].items;
+                currentSectionItems.forEach(item => {
+                    const valueInput = document.getElementById(`edit-value-${item.key}`);
+                    const statusInput = document.getElementById(`edit-status-${item.key}`);
+                    const noteInput = document.getElementById(`edit-note-${item.key}`);
+
+                    if (valueInput) item.value = valueInput.value;
+                    if (statusInput) item.status = statusInput.value;
+                    if (noteInput) item.note = noteInput.value;
+                });
+            }
+            
+            toggleEditMode(); // This will re-render everything
+            initializeDashboard();
+        }
+
+        function cancelEdit() {
+            appData = JSON.parse(JSON.stringify(originalAppData)); // Revert to original data
+            toggleEditMode(); // This will re-render everything
+            initializeDashboard();
+        }
+
+        function populateDeficiencies() {
+            const deficiencies = [];
+            for (const key in appData) {
+                if (key !== 'deficiencies' && key !== 'general' && appData[key].items) {
+                    appData[key].items.forEach(item => {
+                        if (item.status === 'Issue' || item.status === 'Danger') {
+                            deficiencies.push({ ...item, section: appData[key].title });
+                        }
+                    });
+                }
+            }
+            appData.deficiencies.items = deficiencies;
+        }
+
+        function renderNavigation() {
+            const navContainer = document.getElementById('navigation');
+            navContainer.innerHTML = '';
+            Object.keys(appData).forEach(key => {
+                const button = document.createElement('button');
+                button.textContent = appData[key].title;
+                button.dataset.section = key;
+                button.className = 'nav-button px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base font-medium text-slate-500 hover:text-slate-800 transition-colors duration-200';
+                button.onclick = () => renderSection(key);
+                navContainer.appendChild(button);
+            });
+        }
+        
+        function renderSummary() {
+            const deficienciesCount = appData.deficiencies.items.length;
+            document.getElementById('deficiencies-count').textContent = deficienciesCount;
+            
+            const overallStatusEl = document.getElementById('overall-status');
+            if (deficienciesCount > 0) {
+                overallStatusEl.textContent = 'Deficiencies Noted';
+                overallStatusEl.className = 'text-lg font-semibold px-4 py-2 rounded-lg bg-red-100 text-red-800';
+            } else {
+                overallStatusEl.textContent = 'Ready for Service';
+                overallStatusEl.className = 'text-lg font-semibold px-4 py-2 rounded-lg bg-green-100 text-green-800';
+            }
+
+            const odometer = appData.general.items.find(item => item.key === 'odometer');
+            if (odometer) {
+                document.getElementById('odometer-reading').textContent = `${parseInt(odometer.value).toLocaleString()} ${odometer.unit}`;
+            }
+        }
+        
+        function renderCharts() {
+            // Destroy existing charts to prevent memory leaks and conflicts
+            for (const chartId in myCharts) {
+                if (myCharts[chartId]) {
+                    myCharts[chartId].destroy();
+                }
+            }
+            myCharts = {}; 
+
+            const fuelLevel = appData.exterior.items.find(item => item.key === 'fuelLevel')?.value;
+            const waterLevel = appData.pump.items.find(item => item.key === 'waterTankLevel')?.value;
+
+            const levelToPercent = { 'Full': 100, '3/4': 75, '1/2': 50, '1/4': 25, 'Less than 1/4': 10 };
+            
+            const fuelPercent = levelToPercent[fuelLevel] || 0;
+            const waterPercent = levelToPercent[waterLevel] || 0;
+
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                }
+            };
+
+            const fuelCtx = document.getElementById('fuelChart');
+            const waterCtx = document.getElementById('waterChart');
+
+            if (fuelCtx) {
+                 myCharts.fuelChart = new Chart(fuelCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Fuel', 'Empty'],
+                        datasets: [{
+                            data: [fuelPercent, 100 - fuelPercent],
+                            backgroundColor: ['#1e293b', '#e2e8f0'],
+                            borderColor: '#ffffff',
+                            borderWidth: 2,
+                        }]
+                    },
+                    options: chartOptions,
+                    plugins: [{
+                        id: 'centerText',
+                        beforeDraw: function(chart) {
+                            const ctx = chart.ctx;
+                            const R = chart.chartArea.right;
+                            const L = chart.chartArea.left;
+                            const B = chart.chartArea.bottom;
+                            const T = chart.chartArea.top;
+                            const width = R-L, height = B-T;
+                            ctx.restore();
+                            const fontSize = (height / 114).toFixed(2);
+                            ctx.font = `bold ${fontSize*1.5}rem Inter`;
+                            ctx.textBaseline = 'middle';
+                            const text = `${fuelPercent}%`;
+                            const textX = Math.round((width - ctx.measureText(text).width) / 2) + L;
+                            const textY = T + (height / 2);
+                            ctx.fillText(text, textX, textY);
+                            ctx.save();
+                        }
+                    }]
+                });
+            }
+
+            if (waterCtx) {
+                myCharts.waterChart = new Chart(waterCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Water', 'Empty'],
+                        datasets: [{
+                            data: [waterPercent, 100 - waterPercent],
+                            backgroundColor: ['#3b82f6', '#e2e8f0'],
+                            borderColor: '#ffffff',
+                            borderWidth: 2,
+                        }]
+                    },
+                    options: chartOptions,
+                    plugins: [{
+                        id: 'centerText',
+                        beforeDraw: function(chart) {
+                            const ctx = chart.ctx;
+                            const R = chart.chartArea.right;
+                            const L = chart.chartArea.left;
+                            const B = chart.chartArea.bottom;
+                            const T = chart.chartArea.top;
+                            const width = R-L, height = B-T;
+                            ctx.restore();
+                            const fontSize = (height / 114).toFixed(2);
+                            ctx.font = `bold ${fontSize*1.5}rem Inter`;
+                            ctx.textBaseline = 'middle';
+                            const text = `${waterPercent}%`;
+                            const textX = Math.round((width - ctx.measureText(text).width) / 2) + L;
+                            const textY = T + (height / 2);
+                            ctx.fillText(text, textX, textY);
+                            ctx.save();
+                        }
+                    }]
+                });
+            }
+        }
+
+        function renderSection(sectionKey) {
+            const section = appData[sectionKey];
+            if (!section) return;
+
+            document.querySelectorAll('.nav-button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.section === sectionKey);
+            });
+
+            const checklistContainer = document.getElementById('checklist');
+            const sectionTitle = document.getElementById('section-title');
+            const sectionIntro = document.getElementById('section-intro');
+            
+            sectionTitle.textContent = section.title;
+            sectionIntro.textContent = section.intro;
+            checklistContainer.innerHTML = '';
+
+            if (section.items.length === 0 && sectionKey === 'deficiencies') {
+                checklistContainer.innerHTML = `<li class="text-slate-500">No deficiencies found.</li>`;
+                return;
+            } else if (section.items.length === 0) {
+                 checklistContainer.innerHTML = `<li class="text-slate-500">No items to display in this section.</li>`;
+                 return;
+            }
+
+            section.items.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'p-4 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between';
+                
+                const statusClass = statusMap[item.status] || 'bg-slate-100 text-slate-800';
+                li.classList.add(statusClass.split(' ')[0]);
+
+                let itemLabel = item.label;
+                if(sectionKey === 'deficiencies' && item.section){
+                    itemLabel = `${item.section}: ${item.label}`;
+                }
+
+                let valueDisplay = item.value;
+                let statusDisplay = item.status;
+                let noteDisplay = item.note || '';
+
+                if (isEditMode && sectionKey !== 'deficiencies') {
+                    let valueInputHtml = '';
+                    if (item.type === 'text' || item.type === 'date') {
+                        valueInputHtml = `<input type="${item.type}" id="edit-value-${item.key}" class="edit-input flex-grow mr-2" value="${item.value}">`;
+                    } else if (item.type === 'number') {
+                        valueInputHtml = `<input type="number" id="edit-value-${item.key}" class="edit-input flex-grow mr-2" value="${item.value}"> ${item.unit || ''}`;
+                    } else if (item.type === 'select' && item.options) {
+                        valueInputHtml = `<select id="edit-value-${item.key}" class="edit-select flex-grow mr-2">`;
+                        item.options.forEach(option => {
+                            valueInputHtml += `<option value="${option}" ${item.value === option ? 'selected' : ''}>${option}</option>`;
+                        });
+                        valueInputHtml += `</select>`;
+                    }
+
+                    const statusSelectHtml = `
+                        <select id="edit-status-${item.key}" class="edit-select w-28 mr-2">
+                            <option value="OK" ${item.status === 'OK' ? 'selected' : ''}>OK</option>
+                            <option value="Issue" ${item.status === 'Issue' ? 'selected' : ''}>Issue</option>
+                            <option value="Danger" ${item.status === 'Danger' ? 'selected' : ''}>Danger</option>
+                        </select>
+                    `;
+                    
+                    const noteInputHtml = `
+                        <textarea id="edit-note-${item.key}" class="edit-input mt-2 w-full text-xs" placeholder="Add note...">${noteDisplay}</textarea>
+                    `;
+
+                    li.innerHTML = `
+                        <div class="flex-grow w-full">
+                            <label for="edit-value-${item.key}" class="font-semibold block text-sm mb-1">${itemLabel}</label>
+                            <div class="flex items-center flex-wrap">
+                                <div class="flex-grow min-w-[150px]">${valueInputHtml}</div>
+                                <div class="w-full sm:w-auto mt-2 sm:mt-0">${statusSelectHtml}</div>
+                            </div>
+                            ${noteInputHtml}
+                        </div>
+                    `;
+                } else {
+                     li.innerHTML = `
+                        <div class="flex-grow">
+                            <p class="font-semibold">${itemLabel}</p>
+                            ${item.note ? `<p class="mt-1 sm:mt-0 sm:ml-4 text-xs italic text-slate-600">${item.note}</p>` : ''}
+                        </div>
+                        <div class="mt-2 sm:mt-0 sm:ml-4 font-medium px-3 py-1 rounded-full text-sm ${statusClass} whitespace-nowrap">
+                            ${valueDisplay}
+                        </div>
+                    `;
+                }
+                checklistContainer.appendChild(li);
+            });
+        }
     </script>
 </body>
 </html>
