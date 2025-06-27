@@ -7,8 +7,26 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.firebase = {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc
+        };
+    </script>
     <!-- Chosen Palette: Slate & Amber -->
-    <!-- Application Structure Plan: A dashboard layout is used to provide an immediate, high-level overview and allow for intuitive drill-downs. The structure consists of: 1) A top-level summary with critical stats (Overall Status, Deficiencies, Key Levels) for quick assessment. 2) Tab-based navigation for each major truck system, which is a more user-friendly discovery method than a long, linear scroll. 3) A dynamic content area that displays the detailed checklist for the selected system. This tiered structure (summary -> system -> detail) was chosen because it allows a user to quickly grasp the overall situation and then efficiently investigate specific areas of concern without being overwhelmed by information, directly translating the form's data collection purpose into an effective data analysis tool. 4) A new 'Edit Dashboard' button enables inline editing of all displayed data fields, removing the need for JSON interaction. 5) A 'Generate Form Link' button allows users to export the current dashboard data into a pre-filled Google Form URL, providing a mechanism for data persistence and external sharing. -->
+    <!-- Application Structure Plan: A dashboard layout is used to provide an immediate, high-level overview and allow for intuitive drill-downs. The structure consists of: 1) A top-level summary with critical stats (Overall Status, Deficiencies, Key Levels) for quick assessment. 2) Tab-based navigation for each major truck system, which is a more user-friendly discovery method than a long, linear scroll. 3) A dynamic content area that displays the detailed checklist for the selected system. This tiered structure (summary -> system -> detail) was chosen because it allows a user to quickly grasp the overall situation and then efficiently investigate specific areas of concern without being overwhelmed by information, directly translating the form's data collection purpose into an effective data analysis tool. 4) A new 'Edit Dashboard' button enables inline editing of all displayed data fields, removing the need for JSON interaction. 5) A 'Generate Form Link' button allows users to export the current dashboard data into a pre-filled Google Form URL, providing a mechanism for external sharing. 6) Integrated Firestore for persistent data storage, ensuring dashboard data is saved and loaded across sessions for the authenticated user. -->
     <!-- Visualization & Content Choices:
         - Report Info: Overall Truck Status -> Goal: Inform -> Viz/Method: Large summary cards & text -> Interaction: None -> Justification: Provides the most critical information at a glance. Library: HTML/Tailwind.
         - Report Info: Fuel & Water Levels -> Goal: Inform -> Viz/Method: Donut Chart -> Interaction: Hover for details -> Justification: Provides a quick, universally understood visual for fluid levels. Library: Chart.js.
@@ -17,6 +35,7 @@
         - Report Info: Deficiencies -> Goal: Inform/Organize -> Viz/Method: A consolidated list view -> Interaction: Accessed via a dedicated tab -> Justification: Gathers all action items into a single, actionable list, which is the primary operational outcome of a check. Library: JS/HTML.
         - Report Info: Data Customization -> Goal: Allow User Input/Modification -> Viz/Method: Inline editable fields -> Interaction: Toggle edit mode, update values directly, save/cancel -> Justification: Offers a highly intuitive, form-like experience for data modification without requiring JSON knowledge. Library: JS/HTML.
         - Report Info: Form Submission/Export -> Goal: Persist Data/Share -> Viz/Method: Button generates pre-filled URL -> Interaction: Click to open new tab -> Justification: Provides a practical way to capture the current state of the dashboard into a structured, external form system. Library: JS/HTML.
+        - Report Info: Data Persistence -> Goal: Retain Data -> Viz/Method: Background Firebase operations -> Interaction: Automatic save/load on changes/page load -> Justification: Ensures data integrity and consistent user experience across sessions. Library: Firebase/Firestore.
     -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
@@ -58,9 +77,25 @@
             width: 100%;
             background-color: white;
         }
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            font-size: 1.5rem;
+            color: #1e293b;
+        }
     </style>
 </head>
 <body class="text-slate-800">
+
+    <div id="loading-overlay" class="hidden">Loading...</div>
 
     <div class="container mx-auto p-4 md:p-8">
         
@@ -69,6 +104,7 @@
                 <div>
                     <h1 class="text-3xl font-bold text-slate-900">Truck Status Dashboard</h1>
                     <p id="truck-info" class="text-slate-500 mt-1">Truck ID: <span id="truck-id-display">E-12</span> | Last Check: <span id="last-check-date-display">June 26, 2025</span></p>
+                    <p class="text-slate-500 mt-1 text-sm">User ID: <span id="user-id-display">N/A</span></p>
                 </div>
                 <div class="mt-4 md:mt-0 flex items-center space-x-4">
                     <div id="overall-status" class="text-lg font-semibold px-4 py-2 rounded-lg"></div>
@@ -123,7 +159,7 @@
         </footer>
     </div>
 
-    <script>
+    <script type="module">
         let appData = {
             general: {
                 title: 'General Information',
@@ -210,6 +246,12 @@
         let isEditMode = false;
         let originalAppData = JSON.parse(JSON.stringify(appData)); // Store a copy for cancel
 
+        // Firebase variables
+        let db;
+        let auth;
+        let userId;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
         // --- Google Form Configuration (YOU NEED TO UPDATE THESE) ---
         const FORM_ACTION_URL = 'https://docs.google.com/forms/d/e/YOUR_GOOGLE_FORM_ID/viewform'; // Replace with your Google Form's base URL (up to /viewform)
         
@@ -269,21 +311,108 @@
         // --- End Google Form Configuration ---
 
 
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeDashboard();
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('loading-overlay').classList.remove('hidden'); // Show loading
+
+            // Initialize Firebase
+            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            const firebase = window.firebase;
+            const app = firebase.initializeApp(firebaseConfig);
+            db = firebase.getFirestore(app);
+            auth = firebase.getAuth(app);
+
+            let isAuthReady = false; // Flag to ensure dashboard initializes only once after auth
+
+            // Set up the authentication state listener FIRST
+            firebase.onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('user-id-display').textContent = userId;
+                    console.log("User authenticated:", userId);
+                } else {
+                    // If no user is signed in after initial attempt, use anonymous ID or default.
+                    // This handles cases where custom token fails or no token is provided.
+                    userId = crypto.randomUUID();
+                    document.getElementById('user-id-display').textContent = `Anon (${userId.substring(0, 8)}...)`;
+                    console.log("No authenticated user, using anonymous ID:", userId);
+                }
+
+                if (!isAuthReady) {
+                    await loadAppData(); // Load data once userId is set
+                    initializeDashboard(); // Render dashboard
+                    document.getElementById('loading-overlay').classList.add('hidden'); // Hide loading
+                    isAuthReady = true; // Mark as ready to prevent re-initialization
+                }
+            });
+
+            // Perform the initial sign-in attempt
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    // Try signing in with the provided custom token
+                    await firebase.signInWithCustomToken(auth, __initial_auth_token);
+                    console.log("Attempted signInWithCustomToken.");
+                } else {
+                    // If no custom token or custom token sign-in isn't desired, sign in anonymously
+                    await firebase.signInAnonymously(auth);
+                    console.log("Attempted signInAnonymously.");
+                }
+            } catch (error) {
+                console.error("Initial Firebase sign-in attempt failed:", error);
+                // The onAuthStateChanged listener above will handle setting userId to anonymous/random UUID
+                // and initializing the dashboard even if this initial sign-in fails.
+            }
+
             document.getElementById('edit-mode-btn').addEventListener('click', toggleEditMode);
-            document.getElementById('save-changes-btn').addEventListener('click', saveChanges);
+            document.getElementById('save-changes-btn').addEventListener('click', saveChangesAndPersist);
             document.getElementById('cancel-edit-btn').addEventListener('click', cancelEdit);
             document.getElementById('generate-form-link-btn').addEventListener('click', generateFormLink);
             document.getElementById('generation-date').textContent = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         });
+
+        async function loadAppData() {
+            try {
+                if (!userId) {
+                    console.log("UserID not available yet, cannot load data from Firestore.");
+                    return;
+                }
+                const docRef = firebase.doc(db, `artifacts/${appId}/users/${userId}/truckChecks`, 'mainTruckData');
+                const docSnap = await firebase.getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    appData = docSnap.data();
+                    console.log("Data loaded from Firestore.");
+                } else {
+                    console.log("No data found in Firestore for this user, using default appData.");
+                    // Save default data if none exists to ensure persistence starts
+                    await saveAppData(); 
+                }
+            } catch (e) {
+                console.error("Error loading document from Firestore: ", e);
+            }
+        }
+
+        async function saveAppData() {
+            try {
+                if (!userId) {
+                    console.error("UserID not available, cannot save data to Firestore.");
+                    return;
+                }
+                const docRef = firebase.doc(db, `artifacts/${appId}/users/${userId}/truckChecks`, 'mainTruckData');
+                await firebase.setDoc(docRef, appData);
+                console.log("Data saved to Firestore successfully!");
+            } catch (e) {
+                console.error("Error saving document to Firestore: ", e);
+            }
+        }
 
         function initializeDashboard() {
             populateDeficiencies();
             renderNavigation();
             renderSummary();
             renderCharts();
-            renderSection('exterior'); // Default to exterior section on load
+            // Retain the currently active section if switching from edit mode, otherwise default
+            const currentActiveSection = document.querySelector('.nav-button.active')?.dataset.section || 'exterior';
+            renderSection(currentActiveSection); 
         }
 
         function toggleEditMode() {
@@ -306,17 +435,19 @@
                 document.getElementById('truck-id-display').textContent = appData.general.items.find(item => item.key === 'truckId').value;
                 document.getElementById('last-check-date-display').textContent = appData.general.items.find(item => item.key === 'dateOfCheck').value;
             }
-            renderSection(document.querySelector('.nav-button.active')?.dataset.section || 'exterior');
+            // Re-render current section to show editable fields or static text
+            const currentActiveSection = document.querySelector('.nav-button.active')?.dataset.section || 'exterior';
+            renderSection(currentActiveSection);
         }
 
-        function saveChanges() {
+        async function saveChangesAndPersist() {
             // Update general info from inputs
             appData.general.items.find(item => item.key === 'truckId').value = document.getElementById('edit-truck-id').value;
             appData.general.items.find(item => item.key === 'dateOfCheck').value = document.getElementById('edit-last-check-date').value;
 
             // Collect updated values from all sections (not just current view)
             for (const sectionKey in appData) {
-                if (sectionKey !== 'deficiencies') {
+                if (sectionKey !== 'deficiencies') { // deficiencies is derived, not directly editable
                     appData[sectionKey].items.forEach(item => {
                         const valueInput = document.getElementById(`edit-value-${item.key}`);
                         const statusInput = document.getElementById(`edit-status-${item.key}`);
@@ -329,14 +460,15 @@
                 }
             }
             
-            toggleEditMode(); // This will re-render everything
-            initializeDashboard();
+            toggleEditMode(); // Exit edit mode, which also triggers a re-render
+            initializeDashboard(); // Re-render dashboard with latest data
+            await saveAppData(); // Persist changes to Firestore
         }
 
         function cancelEdit() {
             appData = JSON.parse(JSON.stringify(originalAppData)); // Revert to original data
-            toggleEditMode(); // This will re-render everything
-            initializeDashboard();
+            toggleEditMode(); // Exit edit mode, which also triggers a re-render
+            initializeDashboard(); // Re-render dashboard with original data
         }
 
         function populateDeficiencies() {
