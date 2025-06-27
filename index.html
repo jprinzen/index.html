@@ -1,4 +1,4 @@
-<<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Chosen Palette: Slate & Amber -->
-    <!-- Application Structure Plan: A dashboard layout is used to provide an immediate, high-level overview and allow for intuitive drill-downs. The structure consists of: 1) A top-level summary with critical stats (Overall Status, Deficiencies, Key Levels) for quick assessment. 2) Tab-based navigation for each major truck system, which is a more user-friendly discovery method than a long, linear scroll. 3) A dynamic content area that displays the detailed checklist for the selected system. This tiered structure (summary -> system -> detail) was chosen because it allows a user to quickly grasp the overall situation and then efficiently investigate specific areas of concern without being overwhelmed by information, directly translating the form's data collection purpose into an effective data analysis tool. 4) A new 'Edit Dashboard' button enables inline editing of all displayed data fields, removing the need for JSON interaction. -->
+    <!-- Application Structure Plan: A dashboard layout is used to provide an immediate, high-level overview and allow for intuitive drill-downs. The structure consists of: 1) A top-level summary with critical stats (Overall Status, Deficiencies, Key Levels) for quick assessment. 2) Tab-based navigation for each major truck system, which is a more user-friendly discovery method than a long, linear scroll. 3) A dynamic content area that displays the detailed checklist for the selected system. This tiered structure (summary -> system -> detail) was chosen because it allows a user to quickly grasp the overall situation and then efficiently investigate specific areas of concern without being overwhelmed by information, directly translating the form's data collection purpose into an effective data analysis tool. 4) A new 'Edit Dashboard' button enables inline editing of all displayed data fields, removing the need for JSON interaction. 5) A 'Generate Form Link' button allows users to export the current dashboard data into a pre-filled Google Form URL, providing a mechanism for data persistence and external sharing. -->
     <!-- Visualization & Content Choices:
         - Report Info: Overall Truck Status -> Goal: Inform -> Viz/Method: Large summary cards & text -> Interaction: None -> Justification: Provides the most critical information at a glance. Library: HTML/Tailwind.
         - Report Info: Fuel & Water Levels -> Goal: Inform -> Viz/Method: Donut Chart -> Interaction: Hover for details -> Justification: Provides a quick, universally understood visual for fluid levels. Library: Chart.js.
@@ -16,6 +16,7 @@
         - Report Info: Detailed Checklist Items -> Goal: Inform/Organize -> Viz/Method: Styled list with status badges -> Interaction: View updates based on tab selection, inline editing in edit mode -> Justification: Clearly presents detailed data, with color-coding to instantly draw attention to issues. Inline editing provides direct, intuitive data modification. Library: JS/HTML.
         - Report Info: Deficiencies -> Goal: Inform/Organize -> Viz/Method: A consolidated list view -> Interaction: Accessed via a dedicated tab -> Justification: Gathers all action items into a single, actionable list, which is the primary operational outcome of a check. Library: JS/HTML.
         - Report Info: Data Customization -> Goal: Allow User Input/Modification -> Viz/Method: Inline editable fields -> Interaction: Toggle edit mode, update values directly, save/cancel -> Justification: Offers a highly intuitive, form-like experience for data modification without requiring JSON knowledge. Library: JS/HTML.
+        - Report Info: Form Submission/Export -> Goal: Persist Data/Share -> Viz/Method: Button generates pre-filled URL -> Interaction: Click to open new tab -> Justification: Provides a practical way to capture the current state of the dashboard into a structured, external form system. Library: JS/HTML.
     -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
@@ -74,6 +75,7 @@
                     <button id="edit-mode-btn" class="px-4 py-2 bg-slate-800 text-white rounded-lg shadow hover:bg-slate-700 transition-colors duration-200">Edit Dashboard</button>
                     <button id="save-changes-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition-colors duration-200 hidden">Save Changes</button>
                     <button id="cancel-edit-btn" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg shadow hover:bg-slate-300 transition-colors duration-200 hidden">Cancel</button>
+                    <button id="generate-form-link-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition-colors duration-200">Generate Form Link</button>
                 </div>
             </div>
         </header>
@@ -208,11 +210,71 @@
         let isEditMode = false;
         let originalAppData = JSON.parse(JSON.stringify(appData)); // Store a copy for cancel
 
+        // --- Google Form Configuration (YOU NEED TO UPDATE THESE) ---
+        const FORM_ACTION_URL = 'https://docs.google.com/forms/d/e/YOUR_GOOGLE_FORM_ID/viewform'; // Replace with your Google Form's base URL (up to /viewform)
+        
+        // Map appData keys to your Google Form entry IDs. Find these by using "Get pre-filled link" on your Google Form.
+        const fieldMappings = {
+            // General Information
+            'dateOfCheck': 'entry.1500000001', // Example ID
+            'truckId': 'entry.1500000002',      // Example ID
+            'driverName': 'entry.1500000003',   // Example ID
+            'oicName': 'entry.1500000004',      // Example ID
+            'shift': 'entry.1500000005',        // Example ID
+            'odometer': 'entry.1500000006',     // Example ID
+            'engineHours': 'entry.1500000007',  // Example ID
+
+            // Exterior Vehicle Check
+            'visualInspection': 'entry.1500000008',
+            'allLighting': 'entry.1500000009',
+            'sirenAirHorn': 'entry.1500000010',
+            'tires': 'entry.1500000011',
+            'undercarriage': 'entry.1500000012',
+            'mirrorsWindows': 'entry.1500000013',
+            'compartmentDoors': 'entry.1500000014',
+            'fuelLevel': 'entry.1500000015',
+
+            // Interior & Cab Check
+            'gaugesIndicators': 'entry.1500000016',
+            'scba': 'entry.1500000017',
+            'vehicleRadios': 'entry.1500000018',
+            'portableRadios': 'entry.1500000019',
+            'medicalGear': 'entry.1500000020',
+            'handTools': 'entry.1500000021',
+            'flashlightsLanterns': 'entry.1500000022',
+            'seatBelts': 'entry.1500000023',
+            'hvacSystem': 'entry.1500000024',
+
+            // Pump and Hose System Check
+            'waterTankLevel': 'entry.1500000025',
+            'pumpPriming': 'entry.1500000026',
+            'pumpGauges': 'entry.1500000027',
+            'dischargeGates': 'entry.1500000028',
+            'intakeConnections': 'entry.1500000029',
+            'preconnectedHose': 'entry.1500000030',
+            'supplyHose': 'entry.1500000031',
+            'nozzles': 'entry.1500000032',
+
+            // Specialized Equipment Check
+            'thermalImager': 'entry.1500000033',
+            'gasDetector': 'entry.1500000034',
+            'extricationTools': 'entry.1500000035',
+            'powerSaws': 'entry.1500000036',
+            'portableGenerators': 'entry.1500000037',
+            'groundLadders': 'entry.1500000038',
+            
+            // Deficiencies (aggregated notes)
+            'deficienciesSummary': 'entry.1500000039' // Example ID for a long text field for all notes
+        };
+        // --- End Google Form Configuration ---
+
+
         document.addEventListener('DOMContentLoaded', () => {
             initializeDashboard();
             document.getElementById('edit-mode-btn').addEventListener('click', toggleEditMode);
             document.getElementById('save-changes-btn').addEventListener('click', saveChanges);
             document.getElementById('cancel-edit-btn').addEventListener('click', cancelEdit);
+            document.getElementById('generate-form-link-btn').addEventListener('click', generateFormLink);
             document.getElementById('generation-date').textContent = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         });
 
@@ -252,19 +314,19 @@
             appData.general.items.find(item => item.key === 'truckId').value = document.getElementById('edit-truck-id').value;
             appData.general.items.find(item => item.key === 'dateOfCheck').value = document.getElementById('edit-last-check-date').value;
 
-            // Collect updated values from current view
-            const currentSectionKey = document.querySelector('.nav-button.active')?.dataset.section;
-            if (currentSectionKey && currentSectionKey !== 'deficiencies') {
-                const currentSectionItems = appData[currentSectionKey].items;
-                currentSectionItems.forEach(item => {
-                    const valueInput = document.getElementById(`edit-value-${item.key}`);
-                    const statusInput = document.getElementById(`edit-status-${item.key}`);
-                    const noteInput = document.getElementById(`edit-note-${item.key}`);
+            // Collect updated values from all sections (not just current view)
+            for (const sectionKey in appData) {
+                if (sectionKey !== 'deficiencies') {
+                    appData[sectionKey].items.forEach(item => {
+                        const valueInput = document.getElementById(`edit-value-${item.key}`);
+                        const statusInput = document.getElementById(`edit-status-${item.key}`);
+                        const noteInput = document.getElementById(`edit-note-${item.key}`);
 
-                    if (valueInput) item.value = valueInput.value;
-                    if (statusInput) item.status = statusInput.value;
-                    if (noteInput) item.note = noteInput.value;
-                });
+                        if (valueInput) item.value = valueInput.value;
+                        if (statusInput) item.status = statusInput.value;
+                        if (noteInput) item.note = noteInput.value;
+                    });
+                }
             }
             
             toggleEditMode(); // This will re-render everything
@@ -515,6 +577,50 @@
                 }
                 checklistContainer.appendChild(li);
             });
+        }
+
+        function generateFormLink() {
+            let formParams = [];
+            
+            // General Info
+            appData.general.items.forEach(item => {
+                if (fieldMappings[item.key]) {
+                    formParams.push(`${fieldMappings[item.key]}=${encodeURIComponent(item.value)}`);
+                }
+            });
+
+            // Other Sections (Value and Status, and Notes)
+            for (const sectionKey in appData) {
+                if (sectionKey !== 'general' && sectionKey !== 'deficiencies' && appData[sectionKey].items) {
+                    appData[sectionKey].items.forEach(item => {
+                        if (fieldMappings[item.key]) {
+                            // Map the item's value
+                            formParams.push(`${fieldMappings[item.key]}=${encodeURIComponent(item.value)}`);
+                            
+                            // Map the item's status (you might need a separate field for this in Google Forms)
+                            // For simplicity, we'll append status to the value or create a separate entry if you have one
+                            // Example: If you have a separate entry for status, uncomment and configure:
+                            // if (fieldMappings[`${item.key}Status`]) { 
+                            //     formParams.push(`${fieldMappings[`${item.key}Status`]}=${encodeURIComponent(item.status)}`);
+                            // }
+
+                            // Map the item's note (if it exists and a mapping is provided)
+                            if (item.note && fieldMappings[`${item.key}Note`]) { 
+                                formParams.push(`${fieldMappings[`${item.key}Note`]}=${encodeURIComponent(item.note)}`);
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Aggregate all deficiencies into one field if a mapping is provided
+            if (fieldMappings['deficienciesSummary']) {
+                const allDeficiencies = appData.deficiencies.items.map(def => `${def.section}: ${def.label} (${def.value}) - ${def.note || 'No specific note.'}`).join('\n');
+                formParams.push(`${fieldMappings['deficienciesSummary']}=${encodeURIComponent(allDeficiencies)}`);
+            }
+
+            const formLink = `${FORM_ACTION_URL}/prefill?${formParams.join('&')}`;
+            window.open(formLink, '_blank');
         }
     </script>
 </body>
